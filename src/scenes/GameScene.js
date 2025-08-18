@@ -416,9 +416,8 @@ if (bottomPadding < MIN_BOTTOM_PAD) {
 
     const txt = this.add.text(x, y, `+${points}`, {
       fontFamily: 'Arial, Helvetica, sans-serif',
-      fontSize: '30px',
+      fontSize: '50px',
       color: '#2ecc71',      // mismo color que alternativas
-      stroke: '#2ecc71',     // verde del borde correcto
       strokeThickness: 3
     })
       .setOrigin(0, 0.5)     // ancla a la izquierda, centrado en Y
