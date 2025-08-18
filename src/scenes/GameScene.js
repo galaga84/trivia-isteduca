@@ -201,20 +201,10 @@ export default class GameScene extends Phaser.Scene {
     const GAP = Math.max(12, Math.min(32, bottomHalfH * 0.06));
 
     const groupHeight = 4 * btnH + 3 * GAP;
-// Subimos todo el grupo de botones 30px manteniendo el GAP
-const BUTTONS_OFFSET_Y = -30; // px (negativo = hacia arriba)
-let firstY = bottomHalfTop + (bottomHalfH - groupHeight) / 2 + btnH / 2 + BUTTONS_OFFSET_Y;
+// Centrar el grupo en la mitad inferior manteniendo el GAP actual
+const firstY = bottomHalfTop + (bottomHalfH - groupHeight) / 2 + btnH / 2;
 
-// Padding inferior mínimo de 50px respecto al borde inferior de la pantalla
-const MIN_BOTTOM_PAD = 50; // px
-const lastY = firstY + 3 * (btnH + GAP);
-const bottomEdge = H; // borde inferior de la pantalla
-const bottomPadding = bottomEdge - (lastY + btnH / 2);
-if (bottomPadding < MIN_BOTTOM_PAD) {
-  firstY -= (MIN_BOTTOM_PAD - bottomPadding); // desplazar hacia arriba lo necesario
-}
-
-    for (let i = 0; i < 4; i++) {
+for (let i = 0; i < 4; i++) {
       const y = firstY + i * (btnH + GAP);
       const entry = this.createChoiceButton(W * 0.5, y, btnW, btnH, qData.choices[i]);
       entry.box.setDepth(20);
@@ -287,6 +277,14 @@ if (bottomPadding < MIN_BOTTOM_PAD) {
     } else {
       this.wrongSfx?.play();
       this.cameras.main.shake(160, 0.01);
+
+      // Penalización: -5 puntos (no bajar de 0)
+      this.score = Math.max(0, this.score - 5);
+      this.scoreText.setText(`Puntaje: ${this.score}`);
+
+      // Mostrar "-5" al lado derecho del botón (rojo, 50px)
+      this.showPenaltyNearButton(entry, 5);
+
       // Borde rojo
       this.showButtonBorder(entry, 0xe74c3c);
     }
@@ -418,6 +416,7 @@ if (bottomPadding < MIN_BOTTOM_PAD) {
       fontFamily: 'Arial, Helvetica, sans-serif',
       fontSize: '50px',
       color: '#2ecc71',      // mismo color que alternativas
+      
       strokeThickness: 3
     })
       .setOrigin(0, 0.5)     // ancla a la izquierda, centrado en Y
@@ -442,6 +441,43 @@ if (bottomPadding < MIN_BOTTOM_PAD) {
       ease: 'Quad.Out',
       yoyo: true,
       hold: 240,
+      onComplete: () => txt.destroy()
+    });
+  }
+
+  // -puntos junto al botón (fuera, alineado al centro vertical del botón)
+  showPenaltyNearButton(entry, amount = 5) {
+    const { width: W } = this.scale;
+
+    let x = entry.box.x + entry.w / 2 + 18;
+    const y = entry.box.y;
+
+    const txt = this.add.text(x, y, `-${amount}`, {
+      fontFamily: 'Arial, Helvetica, sans-serif',
+      fontSize: '50px',
+      color: '#e74c3c',      
+      strokeThickness: 3
+    })
+      .setOrigin(0, 0.5)
+      .setDepth(50)
+      .setAlpha(0);
+
+    const bounds = txt.getBounds();
+    const maxX = W - 12;
+    if (bounds.right > maxX) {
+      const over = bounds.right - maxX;
+      txt.x -= over;
+    }
+
+    this.tweens.add({
+      targets: txt,
+      alpha: 1,
+      x: txt.x + 10,
+      y: y - 8,
+      duration: 160,
+      ease: 'Quad.Out',
+      yoyo: true,
+      hold: 260,
       onComplete: () => txt.destroy()
     });
   }
