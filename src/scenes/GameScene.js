@@ -197,10 +197,22 @@ export default class GameScene extends Phaser.Scene {
     // ======== Alternativas (mitad inferior, centradas como grupo) ========
     const btnW = Math.min(W * 0.86, 780);
     const btnH = 96;
-    const GAP = Math.min(124, bottomHalfH * 0.24);
+    // Reducimos el espacio vertical entre botones para que queden más juntos
+    const GAP = Math.max(12, Math.min(32, bottomHalfH * 0.06));
 
     const groupHeight = 4 * btnH + 3 * GAP;
-    const firstY = bottomHalfTop + (bottomHalfH - groupHeight) / 2 + btnH / 2;
+// Subimos todo el grupo de botones 30px manteniendo el GAP
+const BUTTONS_OFFSET_Y = -30; // px (negativo = hacia arriba)
+let firstY = bottomHalfTop + (bottomHalfH - groupHeight) / 2 + btnH / 2 + BUTTONS_OFFSET_Y;
+
+// Padding inferior mínimo de 50px respecto al borde inferior de la pantalla
+const MIN_BOTTOM_PAD = 50; // px
+const lastY = firstY + 3 * (btnH + GAP);
+const bottomEdge = H; // borde inferior de la pantalla
+const bottomPadding = bottomEdge - (lastY + btnH / 2);
+if (bottomPadding < MIN_BOTTOM_PAD) {
+  firstY -= (MIN_BOTTOM_PAD - bottomPadding); // desplazar hacia arriba lo necesario
+}
 
     for (let i = 0; i < 4; i++) {
       const y = firstY + i * (btnH + GAP);
@@ -464,4 +476,3 @@ export default class GameScene extends Phaser.Scene {
     tex.refresh();
   }
 }
-
