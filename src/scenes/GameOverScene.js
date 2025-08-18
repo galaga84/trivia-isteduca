@@ -12,7 +12,9 @@ export default class GameOverScene extends Phaser.Scene {
   preload() {
     // Fondo exclusivo de Game Over
     this.load.image('gameover_bg', 'assets/images/background-over.png');
-    // Música de Game Over (suena una vez)
+    // Logo en la mitad superior
+    this.load.image('logo', 'assets/images/logo.png');
+    // Música de Game Over (una sola vez)
     this.load.audio('gameoverMusic', 'assets/audio/gameover_music.mp3');
   }
 
@@ -25,6 +27,9 @@ export default class GameOverScene extends Phaser.Scene {
     // Asegurar que la música previa no siga
     this.sound.stopByKey('gameMusic');
     this.sound.stopByKey('introMusic');
+
+    // Logo centrado en X y centro del top-half
+    this.add.image(W * 0.5, H * 0.25, 'logo').setOrigin(0.5);
 
     // Música de Game Over (no loop)
     const gom = this.sound.add('gameoverMusic', { loop: false, volume: 0.5 });

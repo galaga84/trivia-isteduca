@@ -1,4 +1,3 @@
-// src/scenes/GameScene.js
 import QUESTIONS from '../data/questions.js';
 
 export default class GameScene extends Phaser.Scene {
@@ -55,7 +54,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   preload() {
-    // FONDO EXCLUSIVO DE GAME
+    // Fondo exclusivo de Game
     this.load.image('game_bg', 'assets/images/background.png');
 
     // Audio
@@ -163,6 +162,14 @@ export default class GameScene extends Phaser.Scene {
     this.cardContainer.add(counterText);
     this.progressText = counterText;
 
+    // Asegurar espacio entre el contador (X/N) y el texto de la pregunta
+    const counterBottom = -cardH / 2 + pad + counterText.height;
+    const gap = 16; // separación mínima en píxeles
+    const minQuestionCenterY = counterBottom + gap + questionText.height / 2;
+    if (questionText.y < minQuestionCenterY) {
+      questionText.setY(minQuestionCenterY);
+    }
+
     // ----- Timer integrado en la base de la card -----
     const barH = 22;
     const trackW = cardW - pad * 2;
@@ -255,23 +262,20 @@ export default class GameScene extends Phaser.Scene {
       const points = Phaser.Math.Clamp(11 - Math.ceil(secondsUsed), 1, 10);
       this.score += points;
 
-      // Actualiza cápsula con "Puntaje: N"
       this.scoreText.setText(`Puntaje: ${this.score}`);
 
-      // +puntos AL LADO DERECHO DEL BOTÓN CORRECTO
+      // +puntos al lado derecho del botón correcto
       this.showPointsNearButton(entry, points);
 
-      // Feedback visual: solo bordes (verde)
+      // Borde verde
       this.showButtonBorder(entry, 0x2ecc71);
 
-      // Bloquear taps duplicados hasta cambiar de pregunta
       this.choiceButtons.forEach(({ hit }) => hit.disableInteractive());
       this.time.delayedCall(480, () => this.nextQuestion());
     } else {
       this.wrongSfx?.play();
       this.cameras.main.shake(160, 0.01);
-
-      // Feedback visual: solo bordes (rojo)
+      // Borde rojo
       this.showButtonBorder(entry, 0xe74c3c);
     }
   }
@@ -313,7 +317,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.scoreCapsule = this.add.container(cx, cy).setAlpha(0).setDepth(30);
 
-    // Fondo gradiente con bordes redondeados ya dibujados
+    // Gradiente con bordes redondeados ya dibujados
     this.createGradientTexture(this.scoreGradKey, this.scoreCapW, this.scoreCapH, '#4f0b7b', '#e0119d', this.BTN_RADIUS);
     const bg = this.add.image(0, 0, this.scoreGradKey).setOrigin(0.5);
     this.scoreCapsule.add(bg);
@@ -347,7 +351,7 @@ export default class GameScene extends Phaser.Scene {
     const label = this.add.text(0, 0, text, {
       fontFamily: 'Arial, Helvetica, sans-serif',
       fontSize: '30px',
-      color: '#313537', // color de alternativas
+      color: '#313537',
       align: 'center',
       wordWrap: { width: w - 40, useAdvancedWrap: true }
     }).setOrigin(0.5);
@@ -357,26 +361,20 @@ export default class GameScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     box.add(hit);
 
-    // Hover/Press (desktop)
-    hit.on('pointerover', () => {
-      this.tweens.add({ targets: bg, alpha: this.HOVER_ALPHA, duration: this.HOVER_DUR, ease: 'Linear' });
-    });
-    hit.on('pointerout', () => {
-      this.tweens.add({ targets: bg, alpha: this.NORMAL_ALPHA, duration: this.HOVER_DUR, ease: 'Linear' });
-    });
-    hit.on('pointerdown', () => {
-      this.tweens.add({ targets: bg, alpha: this.PRESS_ALPHA, duration: this.HOVER_DUR, ease: 'Linear' });
-    });
-    const restoreAlpha = () => {
-      this.tweens.add({ targets: bg, alpha: this.NORMAL_ALPHA, duration: this.HOVER_DUR, ease: 'Linear' });
-    };
-    hit.on('pointerup', restoreAlpha);
-    hit.on('pointerupoutside', restoreAlpha);
+    hit.on('pointerover', () => { this.tweens.add({ targets: bg, alpha: this.HOVER_ALPHA, duration: this.HOVER_DUR }); });
+    hit.on('pointerout',  () => { this.tweens.add({ targets: bg, alpha: this.NORMAL_ALPHA, duration: this.HOVER_DUR }); });
+    hit.on('pointerdown', () => { this.tweens.add({ targets: bg, alpha: this.PRESS_ALPHA, duration: this.HOVER_DUR }); });
+    const restore = () => { this.tweens.add({ targets: bg, alpha: this.NORMAL_ALPHA, duration: this.HOVER_DUR }); };
+    hit.on('pointerup', restore);
+    hit.on('pointerupoutside', restore);
 
     return { box, bg, label, hit, border: null, shadow, w, h, r };
   }
 
   drawButtonBG(g, w, h, fill, stroke, lineW, radius) {
+    g.clear();
+    g.fillStyle(fill, 1);
+    g.fillRoundedRect(-w / 2, -w / 2 + (w - h) / 2, w, h, radius); // normal
     g.clear();
     g.fillStyle(fill, 1);
     g.fillRoundedRect(-w / 2, -h / 2, w, h, radius);
@@ -396,7 +394,8 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: g, alpha: 1, duration: 90, yoyo: true, hold: 140 });
   }
 
- showPointsNearButton(entry, points) {
+  // +puntos junto al botón (fuera, alineado al centro vertical del botón)
+  showPointsNearButton(entry, points) {
     const { width: W } = this.scale;
 
     // Posición base: justo a la DERECHA del botón, centrado verticalmente
@@ -414,13 +413,21 @@ export default class GameScene extends Phaser.Scene {
       .setDepth(50)
       .setAlpha(0);
 
-    // Pequeña animación de aparición centrada
+    // Evitar salir por la derecha
+    const bounds = txt.getBounds();
+    const maxX = W - 12;
+    if (bounds.right > maxX) {
+      const over = bounds.right - maxX;
+      txt.x -= over;
+    }
+
+    // Animación sutil de aparición
     this.tweens.add({
       targets: txt,
       alpha: 1,
+      x: txt.x + 10,
       y: y - 10,
-      scale: 1,
-      duration: 180,
+      duration: 160,
       ease: 'Quad.Out',
       yoyo: true,
       hold: 240,
@@ -428,31 +435,7 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  // (Opcional, ya no se usa para la cápsula)
-  showPointsGain(points) {
-    const rightEdge = this.scoreCapsule.x + this.scoreCapW / 2;
-    const y = this.scoreCapsule.y;
-    const gain = this.add.text(rightEdge + 8, y, `+${points}`, {
-      fontFamily: 'Arial, Helvetica, sans-serif',
-      fontSize: '30px',
-      color: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 4
-    }).setOrigin(0, 0.5).setAlpha(0);
-
-    this.tweens.add({
-      targets: gain,
-      alpha: 1,
-      y: y - 16,
-      duration: 180,
-      ease: 'Quad.Out',
-      yoyo: true,
-      hold: 200,
-      onComplete: () => gain.destroy()
-    });
-  }
-
-  // ============ Gradiente con bordes redondeados (sin máscaras) ============
+  // Gradiente con bordes redondeados (sin máscaras)
   createGradientTexture(key, w, h, leftColor, rightColor, radius = 0) {
     const tex = this.textures.createCanvas(key, Math.max(1, Math.floor(w)), Math.max(1, Math.floor(h)));
     const ctx = tex.getContext();
