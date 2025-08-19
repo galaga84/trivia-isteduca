@@ -3,12 +3,16 @@ import QUESTIONS from '../data/questions.js';
 export default class GameScene extends Phaser.Scene {
   constructor() {
     super('GameScene');
-    this.totalTime = 10;
+    this.totalTime = 20;           // 20s por pregunta
     this.elapsed = 0;
     this.timerRunning = false;
 
     this.score = 0;
     this.currentIndex = 0;
+
+    // Estado para aleatoriedad
+    this.qOrder = [];              // orden aleatorio de preguntas (índices)
+    this.currentCorrectIndex = 0;  // índice correcto tras barajar alternativas
 
     // UI refs
     this.cardContainer = null;
@@ -49,6 +53,7 @@ export default class GameScene extends Phaser.Scene {
     if (data?.restart) {
       this.score = 0;
       this.currentIndex = 0;
+      this.qOrder = []; // regenerar orden al reiniciar
       this.sound.stopByKey('gameMusic');
     }
   }
@@ -84,6 +89,11 @@ export default class GameScene extends Phaser.Scene {
     this.correctSfx = this.sound.add('correctSfx', { volume: 0.7 });
     this.wrongSfx   = this.sound.add('wrongSfx',   { volume: 0.7 });
 
+    // Generar orden aleatorio de preguntas al iniciar
+    if (!this.qOrder || this.qOrder.length !== QUESTIONS.length || this.currentIndex === 0) {
+      this.qOrder = Phaser.Utils.Array.Shuffle([...Array(QUESTIONS.length).keys()]);
+    }
+
     if (this.currentIndex >= QUESTIONS.length) this.currentIndex = 0;
     this.showQuestion(this.currentIndex);
   }
@@ -91,7 +101,15 @@ export default class GameScene extends Phaser.Scene {
   // ============ Layout por pregunta ============
   showQuestion(idx) {
     const { width: W, height: H } = this.scale;
-    const qData = QUESTIONS[idx];
+
+    const realIndex = this.qOrder[idx] ?? idx;
+    const qData = QUESTIONS[realIndex];
+
+    // Barajar alternativas y recalcular índice correcto respecto a la vista
+    const baseChoices = qData.choices.slice();
+    const choiceOrder = Phaser.Utils.Array.Shuffle([0, 1, 2, 3]);
+    const displayChoices = choiceOrder.map(i => baseChoices[i]);
+    this.currentCorrectIndex = choiceOrder.indexOf(qData.correctIndex);
 
     // Limpieza
     this.cardContainer?.destroy(true); this.cardContainer = null;
@@ -197,16 +215,16 @@ export default class GameScene extends Phaser.Scene {
     // ======== Alternativas (mitad inferior, centradas como grupo) ========
     const btnW = Math.min(W * 0.86, 780);
     const btnH = 96;
-    // Reducimos el espacio vertical entre botones para que queden más juntos
+    // Espaciado vertical actual (ajustado previamente)
     const GAP = Math.max(12, Math.min(32, bottomHalfH * 0.06));
 
     const groupHeight = 4 * btnH + 3 * GAP;
-// Centrar el grupo en la mitad inferior manteniendo el GAP actual
-const firstY = bottomHalfTop + (bottomHalfH - groupHeight) / 2 + btnH / 2;
+    // Centrar el grupo en la mitad inferior manteniendo el GAP actual
+    const firstY = bottomHalfTop + (bottomHalfH - groupHeight) / 2 + btnH / 2;
 
-for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 4; i++) {
       const y = firstY + i * (btnH + GAP);
-      const entry = this.createChoiceButton(W * 0.5, y, btnW, btnH, qData.choices[i]);
+      const entry = this.createChoiceButton(W * 0.5, y, btnW, btnH, displayChoices[i]);
       entry.box.setDepth(20);
       entry.hit.on('pointerdown', () => this.onChoice(i));
       this.choiceButtons.push(entry);
@@ -250,11 +268,10 @@ for (let i = 0; i < 4; i++) {
   onChoice(index) {
     if (!this.timerRunning) return;
 
-    const qData = QUESTIONS[this.currentIndex];
     const entry = this.choiceButtons[index];
     if (!entry) return;
 
-    const isCorrect = index === qData.correctIndex;
+    const isCorrect = index === this.currentCorrectIndex;
 
     if (isCorrect) {
       this.timerRunning = false;
@@ -295,6 +312,7 @@ for (let i = 0; i < 4; i++) {
     this.currentIndex += 1;
 
     if (this.currentIndex >= QUESTIONS.length) {
+      // Guardar mejor puntaje local
       try {
         const stored = parseInt(localStorage.getItem('bestScore') || '0', 10);
         if (isFinite(stored)) {
@@ -416,7 +434,7 @@ for (let i = 0; i < 4; i++) {
       fontFamily: 'Arial, Helvetica, sans-serif',
       fontSize: '50px',
       color: '#2ecc71',      // mismo color que alternativas
-      
+           // verde del borde correcto
       strokeThickness: 3
     })
       .setOrigin(0, 0.5)     // ancla a la izquierda, centrado en Y
@@ -455,7 +473,8 @@ for (let i = 0; i < 4; i++) {
     const txt = this.add.text(x, y, `-${amount}`, {
       fontFamily: 'Arial, Helvetica, sans-serif',
       fontSize: '50px',
-      color: '#e74c3c',      
+      color: '#e74c3c',
+      
       strokeThickness: 3
     })
       .setOrigin(0, 0.5)

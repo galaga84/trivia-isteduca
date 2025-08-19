@@ -14,7 +14,7 @@ export default class GameOverScene extends Phaser.Scene {
     this.load.image('gameover_bg', 'assets/images/background-over.png');
     // Logo en la mitad superior
     this.load.image('logo', 'assets/images/logo.png');
-    // Música de Game Over (una sola vez)
+    // Música de Game Over (suena una vez)
     this.load.audio('gameoverMusic', 'assets/audio/gameover_music.mp3');
   }
 
@@ -29,7 +29,7 @@ export default class GameOverScene extends Phaser.Scene {
     this.sound.stopByKey('introMusic');
 
     // Logo centrado en X y centro del top-half
-    this.add.image(W * 0.5, H * 0.25, 'logo').setOrigin(0.5);
+    const logo = this.add.image(W * 0.5, H * 0.25, 'logo').setOrigin(0.5);
 
     // Música de Game Over (no loop)
     const gom = this.sound.add('gameoverMusic', { loop: false, volume: 0.5 });
@@ -37,9 +37,17 @@ export default class GameOverScene extends Phaser.Scene {
 
     const score = data?.score ?? 0;
 
-    // ================== CARD CENTRADO (estilo del juego) ==================
+    // Leer mejor puntaje local
+    let best = 0;
+    try {
+      const raw = localStorage.getItem('bestScore') || '0';
+      best = parseInt(raw, 10) || 0;
+      if (score > best) best = score; // por si venimos sin haberlo guardado
+    } catch (_) {}
+
+    // ================== CARD CENTRADO ==================
     const cardW = Math.min(W * 0.9, 900);
-    const cardH = 360;
+    const cardH = 440; // un poco más alto para la línea "Tu mejor puntaje"
     const card = this.add.container(W * 0.5, H * 0.5);
 
     const shadow = this.add.graphics();
@@ -52,7 +60,7 @@ export default class GameOverScene extends Phaser.Scene {
     bg.fillRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, this.CARD_RADIUS);
     card.add(bg);
 
-    const title = this.add.text(0, -30, 'Se acabó el juego', {
+    const title = this.add.text(0, -60, 'Se acabó el juego', {
       fontFamily: 'Arial, Helvetica, sans-serif',
       fontSize: '60px',
       color: '#0f0f13',
@@ -60,13 +68,21 @@ export default class GameOverScene extends Phaser.Scene {
     }).setOrigin(0.5);
     card.add(title);
 
-    const scoreLbl = this.add.text(0, 40, `Tu puntaje: ${score}`, {
+    const scoreLbl = this.add.text(0, 20, `Tu puntaje: ${score}`, {
       fontFamily: 'Arial, Helvetica, sans-serif',
       fontSize: '44px',
       color: '#313537',
       align: 'center'
     }).setOrigin(0.5);
     card.add(scoreLbl);
+
+    const bestLbl = this.add.text(0, 90, `Tu mejor puntaje: ${best}`, {
+      fontFamily: 'Arial, Helvetica, sans-serif',
+      fontSize: '40px',
+      color: '#313537',
+      align: 'center'
+    }).setOrigin(0.5);
+    card.add(bestLbl);
 
     // ================== BOTONES (como en Inicio) ==================
     const btnW = Math.min(W * 0.6, 520);
@@ -86,7 +102,7 @@ export default class GameOverScene extends Phaser.Scene {
       this.scene.start('IntroScene');
     });
 
-    this.tweens.add({ targets: [card, retry.box, back.box], alpha: 1, duration: 380, ease: 'Quad.Out' });
+    this.tweens.add({ targets: [logo, card, retry.box, back.box], alpha: 1, duration: 380, ease: 'Quad.Out' });
   }
 
   createCapsuleButton(cx, cy, w, h, labelText, onClick) {
