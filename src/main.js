@@ -1,6 +1,7 @@
 import IntroScene from './scenes/IntroScene.js';
 import GameScene from './scenes/GameScene.js';
 import GameOverScene from './scenes/GameOverScene.js';
+import LeaderboardScene from './scenes/LeaderboardScene.js'; // ⬅️ nuevo
 
 const config = {
   type: Phaser.AUTO,
@@ -11,9 +12,10 @@ const config = {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH
   },
-  scene: [IntroScene, GameScene, GameOverScene]
+  scene: [IntroScene, LeaderboardScene, GameScene, GameOverScene] // ⬅️ agrega aquí
 };
 
 new Phaser.Game(config);
+
 
 
