@@ -60,7 +60,7 @@ const QUESTIONS = [
     correctIndex: 2,
   },
    {
-    text: "¿Qué establece la NCh 934.Of94?",
+    text: "¿Qué establece la NCh 934.Of94?",
     choices: [
       "La clasificación de los tipos de incendios según el material involucrado en la combustión.",
       "Los procedimientos para extinguir incendios en espacios confinados.",

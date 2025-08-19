@@ -10,9 +10,13 @@ export default class GameScene extends Phaser.Scene {
     this.score = 0;
     this.currentIndex = 0;
 
+    // Config
+    this.useEscalatingPenalty = true; // ← pon en false para penalización fija de -5
+
     // Estado para aleatoriedad
     this.qOrder = [];              // orden aleatorio de preguntas (índices)
     this.currentCorrectIndex = 0;  // índice correcto tras barajar alternativas
+    this.mistakesThisQuestion = 0; // errores en la pregunta actual (para escalar penalización)
 
     // UI refs
     this.cardContainer = null;
@@ -124,6 +128,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.elapsed = 0;
     this.timerRunning = false;
+    this.mistakesThisQuestion = 0; // reset de errores por pregunta
 
     // ======== División 50/50 de pantalla ========
     const topHalfTop = 0;
@@ -180,9 +185,9 @@ export default class GameScene extends Phaser.Scene {
     this.cardContainer.add(counterText);
     this.progressText = counterText;
 
-    // Asegurar espacio entre el contador (X/N) y el texto de la pregunta
+    // Evitar choque con el contador
     const counterBottom = -cardH / 2 + pad + counterText.height;
-    const gap = 16; // separación mínima en píxeles
+    const gap = 16;
     const minQuestionCenterY = counterBottom + gap + questionText.height / 2;
     if (questionText.y < minQuestionCenterY) {
       questionText.setY(minQuestionCenterY);
@@ -215,11 +220,8 @@ export default class GameScene extends Phaser.Scene {
     // ======== Alternativas (mitad inferior, centradas como grupo) ========
     const btnW = Math.min(W * 0.86, 780);
     const btnH = 96;
-    // Espaciado vertical actual (ajustado previamente)
     const GAP = Math.max(12, Math.min(32, bottomHalfH * 0.06));
-
     const groupHeight = 4 * btnH + 3 * GAP;
-    // Centrar el grupo en la mitad inferior manteniendo el GAP actual
     const firstY = bottomHalfTop + (bottomHalfH - groupHeight) / 2 + btnH / 2;
 
     for (let i = 0; i < 4; i++) {
@@ -278,9 +280,11 @@ export default class GameScene extends Phaser.Scene {
       this.correctSfx?.play();
 
       const secondsUsed = Math.min(this.totalTime, Math.max(0.001, this.elapsed));
-      const points = Phaser.Math.Clamp(11 - Math.ceil(secondsUsed), 1, 10);
-      this.score += points;
+      // Lineal 10→1 a lo largo de 20 s (2 s por punto)
+      const points = Math.max(1, 10 - Math.floor(secondsUsed / 2));
 
+      // **FIX**: sumar puntos al puntaje total
+      this.score += points;
       this.scoreText.setText(`Puntaje: ${this.score}`);
 
       // +puntos al lado derecho del botón correcto
@@ -289,21 +293,31 @@ export default class GameScene extends Phaser.Scene {
       // Borde verde
       this.showButtonBorder(entry, 0x2ecc71);
 
+      // Bloquear más toques y pasar a la siguiente
       this.choiceButtons.forEach(({ hit }) => hit.disableInteractive());
       this.time.delayedCall(480, () => this.nextQuestion());
     } else {
       this.wrongSfx?.play();
       this.cameras.main.shake(160, 0.01);
 
-      // Penalización: -5 puntos (no bajar de 0)
-      this.score = Math.max(0, this.score - 5);
+      // Penalización (progresiva o fija)
+      let penalty = 5;
+      if (this.useEscalatingPenalty) {
+        this.mistakesThisQuestion += 1;      // 1º error = 1, 2º = 2, ...
+        penalty = 5 * this.mistakesThisQuestion; // 5, 10, 15...
+      }
+
+      // No bajar de 0
+      this.score = Math.max(0, this.score - penalty);
       this.scoreText.setText(`Puntaje: ${this.score}`);
 
-      // Mostrar "-5" al lado derecho del botón (rojo, 50px)
-      this.showPenaltyNearButton(entry, 5);
+      // Mostrar penalización al lado derecho del botón (rojo, 50px)
+      this.showPenaltyNearButton(entry, penalty);
 
       // Borde rojo
       this.showButtonBorder(entry, 0xe74c3c);
+
+      // (No bloqueamos: puede volver a intentar mientras quede tiempo)
     }
   }
 
@@ -402,9 +416,6 @@ export default class GameScene extends Phaser.Scene {
   drawButtonBG(g, w, h, fill, stroke, lineW, radius) {
     g.clear();
     g.fillStyle(fill, 1);
-    g.fillRoundedRect(-w / 2, -w / 2 + (w - h) / 2, w, h, radius); // normal
-    g.clear();
-    g.fillStyle(fill, 1);
     g.fillRoundedRect(-w / 2, -h / 2, w, h, radius);
     g.lineStyle(lineW, stroke, 1);
     g.strokeRoundedRect(-w / 2, -h / 2, w, h, radius);
@@ -426,18 +437,17 @@ export default class GameScene extends Phaser.Scene {
   showPointsNearButton(entry, points) {
     const { width: W } = this.scale;
 
-    // Posición base: justo a la DERECHA del botón, centrado verticalmente
+    // Posición base: a la DERECHA del botón, centrado verticalmente
     let x = entry.box.x + entry.w / 2 + 18;
-    const y = entry.box.y; // centro del botón
+    const y = entry.box.y;
 
     const txt = this.add.text(x, y, `+${points}`, {
       fontFamily: 'Arial, Helvetica, sans-serif',
       fontSize: '50px',
-      color: '#2ecc71',      // mismo color que alternativas
-           // verde del borde correcto
+      color: '#2ecc71',     // verde del borde correcto
       strokeThickness: 3
     })
-      .setOrigin(0, 0.5)     // ancla a la izquierda, centrado en Y
+      .setOrigin(0, 0.5)
       .setDepth(50)
       .setAlpha(0);
 
@@ -449,7 +459,6 @@ export default class GameScene extends Phaser.Scene {
       txt.x -= over;
     }
 
-    // Animación sutil de aparición
     this.tweens.add({
       targets: txt,
       alpha: 1,
@@ -474,7 +483,6 @@ export default class GameScene extends Phaser.Scene {
       fontFamily: 'Arial, Helvetica, sans-serif',
       fontSize: '50px',
       color: '#e74c3c',
-      
       strokeThickness: 3
     })
       .setOrigin(0, 0.5)
