@@ -1,7 +1,7 @@
 // src/scenes/LeaderboardScene.js
 import { fetchScoresPage } from "../net/leaderboard.js";
 
-const PAGE_SIZE = 15;
+const PAGE_SIZE = 25;
 
 export default class LeaderboardScene extends Phaser.Scene {
   constructor() {
@@ -49,6 +49,9 @@ export default class LeaderboardScene extends Phaser.Scene {
     this.empresaColW = 0;
     this.rankColW = 50;   // fijo aprox
     this.scoreColW = 120; // fijo aprox (3–4 dígitos)
+
+    // alturas de línea
+    this.lineH = 40; // coherente con fontSize 30px
   }
 
   preload() {
@@ -67,7 +70,7 @@ export default class LeaderboardScene extends Phaser.Scene {
     const bgKey = this.textures.exists('intro_bg') ? 'intro_bg' : 'game_bg';
     this.add.image(W * 0.5, H * 0.5, bgKey).setDisplaySize(W, H).setDepth(-1);
 
-    // --- Card al 60% de alto y **95%** de ancho para que entren los textos largos ---
+    // Card al 60% de alto y 95% de ancho (inicial, luego se autoajusta)
     this.cardW = Math.floor(W * 0.95);
     this.cardH = Math.floor(H * 0.6);
     this.listWidth = this.cardW - this.padX * 2;
@@ -146,54 +149,113 @@ export default class LeaderboardScene extends Phaser.Scene {
       () => this.scene.start('IntroScene')
     );
 
-    // Calcular columnas (intenta encajar 25 y 30 caracteres a 30px)
+    // Calcular columnas (intenta encajar 20 y 20 caracteres a 30px)
     this.computeColumns();
+
+    // Autoajuste inicial (0 filas mientras carga)
+    this.autoResizeCard(0);
 
     // Cargar primera página
     await this.fetchAndRenderPage(1);
+
+    // (Opcional) Reajustar si cambia el tamaño del canvas
+    this.scale.on('resize', this.onResize, this);
   }
 
-  // --- Cálculo de columnas dinámico para 25/30 caracteres en 30px ---
+  // ---------- Autoajuste de la card ----------
+  autoResizeCard(rowCount) {
+    const { width: W, height: H } = this.scale;
+
+    // Altura del contenido de la lista
+    const listContentH = Math.max(1, rowCount) * this.lineH + 10; // +10 por el spacer
+
+    // Bloques fijos (ajusta si cambias tipografías o márgenes)
+    const TOP_BLOCK    = 110;  // desde borde superior hasta inicio de lista (TITLE+HEADER+gaps)
+    const CONTROLS_PAD = 130;  // espacio para botones de paginación dentro de la card
+    const EXTRA_PAD    = 20;   // respiración inferior
+
+    const desiredH = TOP_BLOCK + listContentH + CONTROLS_PAD + EXTRA_PAD;
+
+    // Limita para no salir de pantalla
+    this.cardH = Phaser.Math.Clamp(Math.floor(desiredH), 280, Math.floor(H * 0.9));
+    this.listWidth = this.cardW - this.padX * 2;
+
+    // Redibuja fondo + sombra con el nuevo alto
+    this.cardShadow.clear();
+    this.cardShadow.fillStyle(0x000000, 0.14);
+    this.cardShadow.fillRoundedRect(-this.cardW / 2, -this.cardH / 2 + 8, this.cardW, this.cardH, this.RADIUS);
+
+    this.cardBG.clear();
+    this.cardBG.fillStyle(0xffffff, 1);
+    this.cardBG.fillRoundedRect(-this.cardW / 2, -this.cardH / 2, this.cardW, this.cardH, this.RADIUS);
+
+    // Reposiciona elementos dependientes del alto
+    this.titleText.setY(-this.cardH / 2 + 18);
+    this.pageInfoText.setPosition(this.cardW / 2 - this.padX, -this.cardH / 2 + 26);
+    this.headerContainer.setPosition(-this.cardW / 2 + this.padX, -this.cardH / 2 + 70);
+    this.listContainer.setPosition(-this.cardW / 2 + this.padX, -this.cardH / 2 + 110);
+
+    // Reubica botones de paginación dentro de la card
+    const controlsY = this.cardH / 2 - 62;
+    this.prevBtn.setPosition(this.card.x - this.cardW / 2 + this.padX + 130, this.card.y + controlsY);
+    this.nextBtn.setPosition(this.card.x + this.cardW / 2 - this.padX - 130, this.card.y + controlsY);
+
+    // Botón "Volver" bajo la card
+    this.backBtn.setPosition(W * 0.5, Math.min(H * 0.92, this.card.y + this.cardH / 2 + 80));
+
+    // Si cambió el ancho útil, recomputa columnas
+    this.computeColumns();
+  }
+
+  onResize() {
+    // Recalcula usando el recuento aproximado de la página actual
+    const lastCount = Math.max(
+      0,
+      Math.min(PAGE_SIZE, this.total - (this.page - 1) * PAGE_SIZE)
+    );
+    this.autoResizeCard(lastCount);
+  }
+  // -------------------------------------------
+
   // --- Cálculo de columnas dinámico para 20/20 caracteres en 30px ---
-computeColumns() {
-  const FONT = 30;
-  const padBetween = 20;
+  computeColumns() {
+    const FONT = 30;
+    const padBetween = 20;
 
-  // medimos el ancho de 20 'M' (peor caso) para ambas columnas
-  const tmp20a = this.add.text(0, -9999, 'M'.repeat(20), {
-    fontFamily: 'Arial, Helvetica, sans-serif', fontSize: `${FONT}px`, color: '#000'
-  }).setVisible(false);
-  const tmp20b = this.add.text(0, -9999, 'M'.repeat(20), {
-    fontFamily: 'Arial, Helvetica, sans-serif', fontSize: `${FONT}px`, color: '#000'
-  }).setVisible(false);
+    // medimos el ancho de 20 'M' (peor caso) para ambas columnas
+    const tmp20a = this.add.text(0, -9999, 'M'.repeat(20), {
+      fontFamily: 'Arial, Helvetica, sans-serif', fontSize: `${FONT}px`, color: '#000'
+    }).setVisible(false);
+    const tmp20b = this.add.text(0, -9999, 'M'.repeat(20), {
+      fontFamily: 'Arial, Helvetica, sans-serif', fontSize: `${FONT}px`, color: '#000'
+    }).setVisible(false);
 
-  const desiredName = tmp20a.width + 6;  // Nombre máx 20
-  const desiredEmp  = tmp20b.width + 6;  // Empresa máx 20
+    const desiredName = tmp20a.width + 6;  // Nombre máx 20
+    const desiredEmp  = tmp20b.width + 6;  // Empresa máx 20
 
-  tmp20a.destroy();
-  tmp20b.destroy();
+    tmp20a.destroy();
+    tmp20b.destroy();
 
-  const availableForNameEmp =
-    this.listWidth - (this.rankColW + this.scoreColW + padBetween * 2 + this.colNameX);
+    const availableForNameEmp =
+      this.listWidth - (this.rankColW + this.scoreColW + padBetween * 2 + this.colNameX);
 
-  let nameW = desiredName;
-  let empW  = desiredEmp;
+    let nameW = desiredName;
+    let empW  = desiredEmp;
 
-  if (nameW + empW > availableForNameEmp) {
-    const scale = availableForNameEmp / (nameW + empW);
-    nameW *= scale;
-    empW  *= scale;
+    if (nameW + empW > availableForNameEmp) {
+      const scale = availableForNameEmp / (nameW + empW);
+      nameW *= scale;
+      empW  *= scale;
+    }
+
+    this.nameColW    = Math.floor(nameW);
+    this.empresaColW = Math.floor(empW);
+
+    this.colRankX    = 0;
+    this.colNameX    = this.colRankX + this.rankColW;
+    this.colEmpresaX = this.colNameX + this.nameColW + padBetween;
+    this.colScoreX   = this.listWidth; // derecha (origin 1)
   }
-
-  this.nameColW    = Math.floor(nameW);
-  this.empresaColW = Math.floor(empW);
-
-  this.colRankX    = 0;
-  this.colNameX    = this.colRankX + this.rankColW;
-  this.colEmpresaX = this.colNameX + this.nameColW + padBetween;
-  this.colScoreX   = this.listWidth; // derecha (origin 1)
-}
-
 
   async goPage(target) {
     const clamped = Math.max(1, Math.min(target, this.totalPages || 1));
@@ -216,6 +278,9 @@ computeColumns() {
       this.page = page;
       this.total = total || 0;
       this.totalPages = Math.max(1, Math.ceil((this.total) / PAGE_SIZE));
+
+      // === Autoajusta la card según cantidad de filas de esta página ===
+      this.autoResizeCard(Array.isArray(rows) ? rows.length : 0);
 
       // Render
       this.renderHeader();
@@ -264,15 +329,16 @@ computeColumns() {
     this.listContainer.removeAll(true);
 
     const data = Array.isArray(rows) ? rows : [];
-    const lineH = 40; // 30px font
 
     // (espaciador)
-    const spacer = this.add.text(0, 0, ' ', { fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '2px' })
-      .setOrigin(0, 0);
+    const spacer = this.add.text(0, 0, ' ', {
+      fontFamily: 'Arial, Helvetica, sans-serif',
+      fontSize: '2px'
+    }).setOrigin(0, 0);
     this.listContainer.add(spacer);
 
     data.forEach((r, i) => {
-      const y = (i + 1) * lineH;
+      const y = (i + 1) * this.lineH;
       const color = '#4b5563';
       const rankGlobal = (this.page - 1) * PAGE_SIZE + (i + 1);
 
@@ -306,99 +372,96 @@ computeColumns() {
   }
 
   // ---- Botones (cápsula) con estilo consistente ----
-createCapsuleButton(cx, cy, w, h, labelText, onClick) {
-  const box = this.add.container(cx, cy);
-  box.setSize(w, h);
+  createCapsuleButton(cx, cy, w, h, labelText, onClick) {
+    const box = this.add.container(cx, cy);
+    box.setSize(w, h);
 
-  const shadow = this.add.graphics();
-  shadow.fillStyle(0x000000, 0.14);
-  shadow.fillRoundedRect(-w / 2, -h / 2 + 6, w, h, this.RADIUS);
-  box.add(shadow);
+    const shadow = this.add.graphics();
+    shadow.fillStyle(0x000000, 0.14);
+    shadow.fillRoundedRect(-w / 2, -h / 2 + 6, w, h, this.RADIUS);
+    box.add(shadow);
 
-  const bg = this.add.graphics();
-  this.drawButtonBG(bg, w, h, 0xffffff, 0xe5e7eb, 2, this.RADIUS); // estado normal (con borde)
-  box.add(bg);
+    const bg = this.add.graphics();
+    this.drawButtonBG(bg, w, h, 0xffffff, 0xe5e7eb, 2, this.RADIUS); // estado normal (con borde)
+    box.add(bg);
 
-  const label = this.add.text(0, 0, labelText, {
-    fontFamily: 'Arial, Helvetica, sans-serif',
-    fontSize: '28px',
-    color: '#111827',
-    align: 'center'
-  }).setOrigin(0.5);
-  box.add(label);
+    const label = this.add.text(0, 0, labelText, {
+      fontFamily: 'Arial, Helvetica, sans-serif',
+      fontSize: '28px',
+      color: '#111827',
+      align: 'center'
+    }).setOrigin(0.5);
+    box.add(label);
 
-  const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0.001)
-    .setInteractive({ useHandCursor: true });
-  box.add(hit);
+    const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0.001)
+      .setInteractive({ useHandCursor: true });
+    box.add(hit);
 
-  // Guarda refs y medidas en el propio contenedor para usarlas en setInteractiveState
-  box._bg = bg;
-  box._label = label;
-  box._hit = hit;
-  box._w = w;
-  box._h = h;
-  box._radius = this.RADIUS;
-  box.disabled = false;
+    // Guarda refs y medidas en el propio contenedor para usarlas en setInteractiveState
+    box._bg = bg;
+    box._label = label;
+    box._hit = hit;
+    box._w = w;
+    box._h = h;
+    box._radius = this.RADIUS;
+    box.disabled = false;
 
-  // Interacciones (se anulan si está disabled)
-  hit.on('pointerover', () => {
-    if (box.disabled) return;
-    this.tweens.add({ targets: bg, alpha: this.HOVER_ALPHA, duration: this.HOVER_DUR });
-  });
-  hit.on('pointerout',  () => {
-    if (box.disabled) return;
-    this.tweens.add({ targets: bg, alpha: this.NORMAL_ALPHA, duration: this.HOVER_DUR });
-  });
-  hit.on('pointerdown', () => {
-    if (box.disabled) return;
-    this.tweens.add({ targets: bg, alpha: this.PRESS_ALPHA, duration: this.HOVER_DUR });
-  });
-  const restore = () => {
-    if (box.disabled) return;
-    this.tweens.add({ targets: bg, alpha: this.NORMAL_ALPHA, duration: this.HOVER_DUR });
-  };
-  hit.on('pointerup', () => { restore(); if (!box.disabled) onClick?.(); });
-  hit.on('pointerupoutside', restore);
+    // Interacciones (se anulan si está disabled)
+    hit.on('pointerover', () => {
+      if (box.disabled) return;
+      this.tweens.add({ targets: bg, alpha: this.HOVER_ALPHA, duration: this.HOVER_DUR });
+    });
+    hit.on('pointerout',  () => {
+      if (box.disabled) return;
+      this.tweens.add({ targets: bg, alpha: this.NORMAL_ALPHA, duration: this.HOVER_DUR });
+    });
+    hit.on('pointerdown', () => {
+      if (box.disabled) return;
+      this.tweens.add({ targets: bg, alpha: this.PRESS_ALPHA, duration: this.HOVER_DUR });
+    });
+    const restore = () => {
+      if (box.disabled) return;
+      this.tweens.add({ targets: bg, alpha: this.NORMAL_ALPHA, duration: this.HOVER_DUR });
+    };
+    hit.on('pointerup', () => { restore(); if (!box.disabled) onClick?.(); });
+    hit.on('pointerupoutside', restore);
 
-  // === NUEVO: habilitar/deshabilitar sin “línea blanca” ===
-  // Mantiene compatibilidad con tu setButtonEnabled(...)
-  box.setInteractiveState = (enabled) => {
-    box.disabled = !enabled;
+    // Habilitar/deshabilitar sin “línea blanca”
+    box.setInteractiveState = (enabled) => {
+      box.disabled = !enabled;
 
-    if (enabled) {
-      // Restaurar estilo normal (con borde), alfa completa y texto fuerte
-      this.drawButtonBG(bg, w, h, 0xffffff, 0xe5e7eb, 2, this.RADIUS);
-      bg.setAlpha(1);
-      label.setColor('#111827').setAlpha(1);
-      hit.setInteractive({ useHandCursor: true });
-    } else {
-      // Fondo gris UNIFORME sin stroke (¡adiós línea blanca!)
-      bg.clear();
-      bg.fillStyle(0xCCCCCC, 1);
-      bg.fillRoundedRect(-w / 2, -h / 2, w, h, this.RADIUS);
-      // Importante: no usamos bg.setAlpha(0.6) → mantenlo en 1 para evitar artefactos
-      bg.setAlpha(1);
+      if (enabled) {
+        // Restaurar estilo normal (con borde), alfa completa y texto fuerte
+        this.drawButtonBG(bg, w, h, 0xffffff, 0xe5e7eb, 2, this.RADIUS);
+        bg.setAlpha(1);
+        label.setColor('#111827').setAlpha(1);
+        hit.setInteractive({ useHandCursor: true });
+      } else {
+        // Fondo gris UNIFORME sin stroke (adiós a artefactos)
+        bg.clear();
+        bg.fillStyle(0xCCCCCC, 1);
+        bg.fillRoundedRect(-w / 2, -h / 2, w, h, this.RADIUS);
+        bg.setAlpha(1);
 
-      // Texto atenuado y sin interacción
-      label.setColor('#6B7280').setAlpha(1);
-      hit.disableInteractive();
-    }
-  };
+        // Texto atenuado y sin interacción
+        label.setColor('#6B7280').setAlpha(1);
+        hit.disableInteractive();
+      }
+    };
 
-  return box;
+    return box;
+  }
+
+  setButtonEnabled(btn, enabled) {
+    if (!btn) return;
+    btn.setInteractiveState?.(!!enabled);
+  }
+
+  drawButtonBG(g, w, h, fill, stroke, lineW, radius) {
+    g.clear();
+    g.fillStyle(fill, 1);
+    g.fillRoundedRect(-w / 2, -h / 2, w, h, radius);
+    g.lineStyle(lineW, stroke, 1);
+    g.strokeRoundedRect(-w / 2, -h / 2, w, h, radius);
+  }
 }
-
-setButtonEnabled(btn, enabled) {
-  if (!btn) return;
-  btn.setInteractiveState?.(!!enabled);
-}
-
-drawButtonBG(g, w, h, fill, stroke, lineW, radius) {
-  g.clear();
-  g.fillStyle(fill, 1);
-  g.fillRoundedRect(-w / 2, -h / 2, w, h, radius);
-  g.lineStyle(lineW, stroke, 1);
-  g.strokeRoundedRect(-w / 2, -h / 2, w, h, radius);
-}
-}
-
