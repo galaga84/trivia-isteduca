@@ -77,9 +77,8 @@ export default class IntroScene extends Phaser.Scene {
 
     this.events.once('shutdown', () => {
       // No apagamos la introMusic aquí para que pueda seguir en la pantalla de Instrucciones/Ranking
-      
+      this.scene.launch('OrientationGuard');
     });
-    
     
     
   }
