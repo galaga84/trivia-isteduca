@@ -306,59 +306,99 @@ computeColumns() {
   }
 
   // ---- Botones (cápsula) con estilo consistente ----
-  createCapsuleButton(cx, cy, w, h, labelText, onClick) {
-    const box = this.add.container(cx, cy);
-    box.setSize(w, h);
+createCapsuleButton(cx, cy, w, h, labelText, onClick) {
+  const box = this.add.container(cx, cy);
+  box.setSize(w, h);
 
-    const shadow = this.add.graphics();
-    shadow.fillStyle(0x000000, 0.14);
-    shadow.fillRoundedRect(-w / 2, -h / 2 + 6, w, h, this.RADIUS);
-    box.add(shadow);
+  const shadow = this.add.graphics();
+  shadow.fillStyle(0x000000, 0.14);
+  shadow.fillRoundedRect(-w / 2, -h / 2 + 6, w, h, this.RADIUS);
+  box.add(shadow);
 
-    const bg = this.add.graphics();
-    this.drawButtonBG(bg, w, h, 0xffffff, 0xe5e7eb, 2, this.RADIUS);
-    box.add(bg);
+  const bg = this.add.graphics();
+  this.drawButtonBG(bg, w, h, 0xffffff, 0xe5e7eb, 2, this.RADIUS); // estado normal (con borde)
+  box.add(bg);
 
-    const label = this.add.text(0, 0, labelText, {
-      fontFamily: 'Arial, Helvetica, sans-serif',
-      fontSize: '28px',
-      color: '#111827',
-      align: 'center'
-    }).setOrigin(0.5);
-    box.add(label);
+  const label = this.add.text(0, 0, labelText, {
+    fontFamily: 'Arial, Helvetica, sans-serif',
+    fontSize: '28px',
+    color: '#111827',
+    align: 'center'
+  }).setOrigin(0.5);
+  box.add(label);
 
-    const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0.001)
-      .setInteractive({ useHandCursor: true });
-    box.add(hit);
+  const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0.001)
+    .setInteractive({ useHandCursor: true });
+  box.add(hit);
 
-    hit.on('pointerover', () => this.tweens.add({ targets: bg, alpha: this.HOVER_ALPHA, duration: this.HOVER_DUR }));
-    hit.on('pointerout',  () => this.tweens.add({ targets: bg, alpha: this.NORMAL_ALPHA, duration: this.HOVER_DUR }));
-    hit.on('pointerdown', () => this.tweens.add({ targets: bg, alpha: this.PRESS_ALPHA, duration: this.HOVER_DUR }));
-    const restore = () => this.tweens.add({ targets: bg, alpha: this.NORMAL_ALPHA, duration: this.HOVER_DUR });
-    hit.on('pointerup', () => { restore(); onClick?.(); });
-    hit.on('pointerupoutside', restore);
+  // Guarda refs y medidas en el propio contenedor para usarlas en setInteractiveState
+  box._bg = bg;
+  box._label = label;
+  box._hit = hit;
+  box._w = w;
+  box._h = h;
+  box._radius = this.RADIUS;
+  box.disabled = false;
 
-    // utilidad para habilitar/deshabilitar
-    box.setInteractiveState = (enabled) => {
-      if (enabled) hit.setInteractive({ useHandCursor: true }); else hit.disableInteractive();
-      label.setAlpha(enabled ? 1 : 0.5);
-      bg.setAlpha(enabled ? 1 : 0.6);
-    };
+  // Interacciones (se anulan si está disabled)
+  hit.on('pointerover', () => {
+    if (box.disabled) return;
+    this.tweens.add({ targets: bg, alpha: this.HOVER_ALPHA, duration: this.HOVER_DUR });
+  });
+  hit.on('pointerout',  () => {
+    if (box.disabled) return;
+    this.tweens.add({ targets: bg, alpha: this.NORMAL_ALPHA, duration: this.HOVER_DUR });
+  });
+  hit.on('pointerdown', () => {
+    if (box.disabled) return;
+    this.tweens.add({ targets: bg, alpha: this.PRESS_ALPHA, duration: this.HOVER_DUR });
+  });
+  const restore = () => {
+    if (box.disabled) return;
+    this.tweens.add({ targets: bg, alpha: this.NORMAL_ALPHA, duration: this.HOVER_DUR });
+  };
+  hit.on('pointerup', () => { restore(); if (!box.disabled) onClick?.(); });
+  hit.on('pointerupoutside', restore);
 
-    return box;
-  }
+  // === NUEVO: habilitar/deshabilitar sin “línea blanca” ===
+  // Mantiene compatibilidad con tu setButtonEnabled(...)
+  box.setInteractiveState = (enabled) => {
+    box.disabled = !enabled;
 
-  setButtonEnabled(btn, enabled) {
-    if (!btn) return;
-    btn.setInteractiveState?.(!!enabled);
-  }
+    if (enabled) {
+      // Restaurar estilo normal (con borde), alfa completa y texto fuerte
+      this.drawButtonBG(bg, w, h, 0xffffff, 0xe5e7eb, 2, this.RADIUS);
+      bg.setAlpha(1);
+      label.setColor('#111827').setAlpha(1);
+      hit.setInteractive({ useHandCursor: true });
+    } else {
+      // Fondo gris UNIFORME sin stroke (¡adiós línea blanca!)
+      bg.clear();
+      bg.fillStyle(0xCCCCCC, 1);
+      bg.fillRoundedRect(-w / 2, -h / 2, w, h, this.RADIUS);
+      // Importante: no usamos bg.setAlpha(0.6) → mantenlo en 1 para evitar artefactos
+      bg.setAlpha(1);
 
-  drawButtonBG(g, w, h, fill, stroke, lineW, radius) {
-    g.clear();
-    g.fillStyle(fill, 1);
-    g.fillRoundedRect(-w / 2, -h / 2, w, h, radius);
-    g.lineStyle(lineW, stroke, 1);
-    g.strokeRoundedRect(-w / 2, -h / 2, w, h, radius);
-  }
+      // Texto atenuado y sin interacción
+      label.setColor('#6B7280').setAlpha(1);
+      hit.disableInteractive();
+    }
+  };
+
+  return box;
+}
+
+setButtonEnabled(btn, enabled) {
+  if (!btn) return;
+  btn.setInteractiveState?.(!!enabled);
+}
+
+drawButtonBG(g, w, h, fill, stroke, lineW, radius) {
+  g.clear();
+  g.fillStyle(fill, 1);
+  g.fillRoundedRect(-w / 2, -h / 2, w, h, radius);
+  g.lineStyle(lineW, stroke, 1);
+  g.strokeRoundedRect(-w / 2, -h / 2, w, h, radius);
+}
 }
 

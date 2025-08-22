@@ -53,23 +53,17 @@ export default class IntroScene extends Phaser.Scene {
     tryPlay();
     this.sound.once(Phaser.Sound.Events.UNLOCKED, tryPlay);
 
-    // Botón “Iniciar”
+    // Botón “Iniciar” -> ahora va a InstructionsScene
     const btnW = Math.min(W * 0.6, 520);
     const btnH = 100;
     const startY = H * 0.70;
 
     const startBtn = this.createCapsuleButton(W * 0.5, startY, btnW, btnH, 'Iniciar', () => {
-      if (this.introMusic?.isPlaying) {
-        this.tweens.add({
-          targets: this.introMusic, volume: 0, duration: 250,
-          onComplete: () => { this.introMusic.stop(); this.scene.start('GameScene', { restart: true }); }
-        });
-      } else {
-        this.scene.start('GameScene', { restart: true });
-      }
+      // Conservamos la música en la pantalla de instrucciones
+      this.scene.start('InstructionsScene');
     });
 
-    // Botón “Revisar Ranking”
+    // Botón “Revisar Ranking” (se mantiene igual)
     const rankBtn = this.createCapsuleButton(W * 0.5, startY + btnH + 28, btnW, btnH, 'Revisar Ranking', () => {
       // Dejamos la música de intro sonando
       this.scene.start('LeaderboardScene');
@@ -82,8 +76,11 @@ export default class IntroScene extends Phaser.Scene {
     });
 
     this.events.once('shutdown', () => {
-      // No apagamos la introMusic aquí para que pueda seguir en la pantalla de Ranking
+      // No apagamos la introMusic aquí para que pueda seguir en la pantalla de Instrucciones/Ranking
+      this.scene.launch('OrientationGuard');
     });
+    
+    
   }
 
   // ---------- Botón cápsula reutilizable ----------
@@ -139,6 +136,7 @@ export default class IntroScene extends Phaser.Scene {
     return scale;
   }
 }
+
 
 
 

@@ -151,21 +151,21 @@ export default class GameOverScene extends Phaser.Scene {
 
     this.line2 = this.add.text(0, this.line1.y + this.line1.height + 6, `Tu mejor puntaje: ${this.bestScore}`, {
       fontFamily: "Arial, Helvetica, sans-serif",
-      fontSize: "28px",
+      fontSize: "40px",
       color: "#6b7280",
     }).setOrigin(0.5, 0);
 
     // Posición (debajo de mejor puntaje)
     this.linePos = this.add.text(0, this.line2.y + this.line2.height + 4, `Tu posición: …`, {
       fontFamily: "Arial, Helvetica, sans-serif",
-      fontSize: "24px",
+      fontSize: "35px",
       color: "#6b7280",
     }).setOrigin(0.5, 0);
 
     this.line3 = this.add.text(0, this.linePos.y + this.linePos.height + 6,
       `Preguntas respondidas: ${this.answered} / ${this.totalQuestions}`, {
       fontFamily: "Arial, Helvetica, sans-serif",
-      fontSize: "22px",
+      fontSize: "35px",
       color: "#6b7280",
     }).setOrigin(0.5, 0);
 
@@ -187,7 +187,7 @@ export default class GameOverScene extends Phaser.Scene {
     // Encabezado del ranking (Top 15)
     const rankTitle = this.add.text(-panelW / 2 + 28, sepY + 16, `Top ${TOP_LIMIT} en línea`, {
       fontFamily: "Arial, Helvetica, sans-serif",
-      fontSize: "26px",
+      fontSize: "30px",
       fontStyle: "bold",
       color: "#0f0f13",
     }).setOrigin(0, 0);
@@ -200,7 +200,7 @@ export default class GameOverScene extends Phaser.Scene {
     // Placeholder de carga
     this.loadingText = this.add.text(0, 0, "Cargando ranking…", {
       fontFamily: "Arial, Helvetica, sans-serif",
-      fontSize: "22px",
+      fontSize: "25px",
       color: "#6b7280",
     }).setOrigin(0, 0);
     this.listContainer.add(this.loadingText);

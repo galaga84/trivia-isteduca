@@ -100,159 +100,265 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.currentIndex >= QUESTIONS.length) this.currentIndex = 0;
     this.showQuestion(this.currentIndex);
+    // === Botón salir (esquina superior derecha) ===
+const btnSize = 80; // diámetro
+const margin = 20;  // separación desde bordes
+const exitX = this.scale.width - btnSize/2 - margin;
+const exitY = btnSize/2 + margin;
+
+// círculo base
+const exitBg = this.add.circle(exitX, exitY, btnSize/2, 0xffffff)
+  .setStrokeStyle(4, 0x4f0b7b)
+  .setInteractive({ useHandCursor: true })
+  .setDepth(100);
+
+// letra X al centro
+const exitLabel = this.add.text(exitX, exitY, 'X', {
+  fontFamily: 'Arial, Helvetica, sans-serif',
+  fontSize: '42px',
+  fontStyle: 'bold',
+  color: '#4f0b7b',
+}).setOrigin(0.5).setDepth(101);
+
+// interacciones
+exitBg.on('pointerover', () => { exitBg.setFillStyle(0xeeeeee); });
+exitBg.on('pointerout', () => { exitBg.setFillStyle(0xffffff); });
+exitBg.on('pointerdown', () => {
+  // detener música si sigue sonando
+  this.sound.stopByKey('gameMusic');
+  this.scene.start('IntroScene');
+});
+
+  }
+
+  // ========= Helper para medir texto con el mismo estilo/wrap del botón =========
+  measureTextSize(text, wrapWidth) {
+    const tmp = this.add.text(0, 0, text, {
+      fontFamily: 'Arial, Helvetica, sans-serif',
+      fontSize: '40px',
+      color: '#313537',
+      align: 'center',
+      wordWrap: { width: wrapWidth, useAdvancedWrap: true }
+    })
+      .setOrigin(0.5)
+      .setVisible(false)
+      .setAlpha(0);
+
+    const size = { width: tmp.width, height: tmp.height };
+    tmp.destroy();
+    return size;
   }
 
   // ============ Layout por pregunta ============
-  showQuestion(idx) {
-    const { width: W, height: H } = this.scale;
+showQuestion(idx) {
+  const { width: W, height: H } = this.scale;
 
-    const realIndex = this.qOrder[idx] ?? idx;
-    const qData = QUESTIONS[realIndex];
+  const realIndex = this.qOrder[idx] ?? idx;
+  const qData = QUESTIONS[realIndex];
 
-    // Barajar alternativas y recalcular índice correcto respecto a la vista
-    const baseChoices = qData.choices.slice();
-    const choiceOrder = Phaser.Utils.Array.Shuffle([0, 1, 2, 3]);
-    const displayChoices = choiceOrder.map(i => baseChoices[i]);
-    this.currentCorrectIndex = choiceOrder.indexOf(qData.correctIndex);
+  // Barajar alternativas y recalcular índice correcto respecto a la vista
+  const baseChoices = qData.choices.slice();
+  const choiceOrder = Phaser.Utils.Array.Shuffle([0, 1, 2, 3]);
+  const displayChoices = choiceOrder.map(i => baseChoices[i]);
+  this.currentCorrectIndex = choiceOrder.indexOf(qData.correctIndex);
 
-    // Limpieza
-    this.cardContainer?.destroy(true); this.cardContainer = null;
-    this.scoreCapsule?.destroy(true); this.scoreCapsule = null;
-    this.choiceButtons.forEach(({ box }) => box?.destroy?.());
-    this.choiceButtons = [];
-    this.timerTrack?.destroy(); this.timerTrack = null;
-    this.timerGradImage?.destroy(); this.timerGradImage = null;
+  // Limpieza
+  this.cardContainer?.destroy(true); this.cardContainer = null;
+  this.scoreCapsule?.destroy(true); this.scoreCapsule = null;
+  this.choiceButtons.forEach(({ box }) => box?.destroy?.());
+  this.choiceButtons = [];
+  this.timerTrack?.destroy(); this.timerTrack = null;
+  this.timerGradImage?.destroy(); this.timerGradImage = null;
 
-    if (this.textures.exists(this.timerGradKey)) this.textures.remove(this.timerGradKey);
-    if (this.textures.exists(this.scoreGradKey)) this.textures.remove(this.scoreGradKey);
+  if (this.textures.exists(this.timerGradKey)) this.textures.remove(this.timerGradKey);
+  if (this.textures.exists(this.scoreGradKey)) this.textures.remove(this.scoreGradKey);
 
-    this.elapsed = 0;
-    this.timerRunning = false;
-    this.mistakesThisQuestion = 0; // reset de errores por pregunta
+  this.elapsed = 0;
+  this.timerRunning = false;
+  this.mistakesThisQuestion = 0; // reset de errores por pregunta
 
-    // ======== División 50/50 de pantalla ========
-    const topHalfTop = 0;
-    const topHalfH = H * 0.5;
-    const bottomHalfTop = H * 0.5;
-    const bottomHalfH = H * 0.5;
+  // ======== División en 2 mitades ========
+  const topHalfTop = 0;
+  const topHalfH = H * 0.5;
+  const bottomHalfTop = H * 0.5;
+  const bottomHalfH = H * 0.5;
 
-    // Mitad superior: cápsula y card centradas y distribuidas en Y
-    const scoreCy = topHalfTop + topHalfH * (1 / 3);
-    const cardCy  = topHalfTop + topHalfH * (2 / 3);
+  // Posiciones base solicitadas
+  let scoreCy  = topHalfTop + topHalfH * (1 / 3); // score en 1/3 de la mitad superior
+  let cardCy   = topHalfTop + topHalfH * (1 / 2); // card en 1/2 de la mitad superior
+  const choicesGroupCy = bottomHalfTop + bottomHalfH * (1 / 3); // alternativas en 1/3 de la mitad inferior
 
-    // ======== Card (rect ángulo 40) ========
-    const cardW = Math.min(W * 0.92, 900);
-    const cardH = Math.min(topHalfH * 0.7, 420);
+  // ======== Dimensiones planeadas para card y score (para evitar solape) ========
+  const cardW = Math.min(W * 0.92, 900);
+  const cardH = Math.min(topHalfH * 0.7, 420);
 
-    // Animación: entra desde la izquierda
-    const startX = -cardW;
-    const targetX = W * 0.5;
+  const scoreCapH = 64;           // el alto que usa createScoreCapsule
+  const MARGIN_BETWEEN = 12;      // margen mínimo entre borde inf. del score y borde sup. de la card
 
-    this.cardContainer = this.add.container(startX, cardCy).setDepth(10);
-
-    // Sombra
-    const cardShadow = this.add.graphics();
-    cardShadow.fillStyle(0x000000, 0.18);
-    cardShadow.fillRoundedRect(-cardW/2, -cardH/2 + 8, cardW, cardH, this.CARD_RADIUS);
-    this.cardContainer.add(cardShadow);
-
-    // Panel blanco
-    const cardBg = this.add.graphics();
-    cardBg.fillStyle(0xffffff, 1);
-    cardBg.fillRoundedRect(-cardW/2, -cardH/2, cardW, cardH, this.CARD_RADIUS);
-    this.cardContainer.add(cardBg);
-
-    // Pregunta
-    const pad = 32;
-    const qMaxWidth = cardW - pad * 2;
-    const questionY = -cardH * 0.22;
-
-    const questionText = this.add.text(0, questionY, qData.text, {
-      fontFamily: 'Arial, Helvetica, sans-serif',
-      fontSize: '44px',
-      color: '#0f0f13',
-      wordWrap: { width: qMaxWidth, useAdvancedWrap: true },
-      align: 'center'
-    }).setOrigin(0.5).setAlpha(0);
-    this.cardContainer.add(questionText);
-
-    // Contador X / N (esquina superior derecha de la card)
-    const counterText = this.add.text(cardW / 2 - pad, -cardH / 2 + pad, `${idx + 1} / ${QUESTIONS.length}`, {
-      fontFamily: 'Arial, Helvetica, sans-serif',
-      fontSize: '32px',
-      color: '#6b7280'
-    }).setOrigin(1, 0).setAlpha(0);
-    this.cardContainer.add(counterText);
-    this.progressText = counterText;
-
-    // Evitar choque con el contador
-    const counterBottom = -cardH / 2 + pad + counterText.height;
-    const gap = 16;
-    const minQuestionCenterY = counterBottom + gap + questionText.height / 2;
-    if (questionText.y < minQuestionCenterY) {
-      questionText.setY(minQuestionCenterY);
-    }
-
-    // ----- Timer integrado en la base de la card -----
-    const barH = 22;
-    const trackW = cardW - pad * 2;
-    const trackX = -cardW / 2 + pad;
-    const trackY = cardH / 2 - pad - barH / 2;
-
-    // Track gris debajo
-    this.timerTrack = this.add.graphics();
-    this.timerTrack.fillStyle(0xE5E7EB, 1);
-    this.timerTrack.fillRoundedRect(trackX, trackY - barH/2, trackW, barH, 10);
-    this.timerTrack.setAlpha(0);
-    this.cardContainer.add(this.timerTrack);
-
-    // Gradiente horizontal del timer (con bordes redondeados ya incluidos)
-    this.createGradientTexture(this.timerGradKey, Math.floor(trackW), Math.floor(barH), '#4f0b7b', '#e0119d', 10);
-    this.timerGradW = trackW; this.timerGradH = barH;
-
-    this.timerGradImage = this.add.image(trackX, trackY, this.timerGradKey)
-      .setOrigin(0, 0.5).setAlpha(0);
-    this.cardContainer.add(this.timerGradImage);
-
-    // ======== Score capsule centrada arriba (mitad superior) ========
-    this.createScoreCapsule(W * 0.5, scoreCy);
-
-    // ======== Alternativas (mitad inferior, centradas como grupo) ========
-    const btnW = Math.min(W * 0.86, 780);
-    const btnH = 96;
-    const GAP = Math.max(12, Math.min(32, bottomHalfH * 0.06));
-    const groupHeight = 4 * btnH + 3 * GAP;
-    const firstY = bottomHalfTop + (bottomHalfH - groupHeight) / 2 + btnH / 2;
-
-    for (let i = 0; i < 4; i++) {
-      const y = firstY + i * (btnH + GAP);
-      const entry = this.createChoiceButton(W * 0.5, y, btnW, btnH, displayChoices[i]);
-      entry.box.setDepth(20);
-      entry.hit.on('pointerdown', () => this.onChoice(i));
-      this.choiceButtons.push(entry);
-    }
-
-    // Animación de entrada
-    this.tweens.add({
-      targets: this.cardContainer,
-      x: targetX,
-      duration: 600,
-      ease: 'Back.Out',
-      onComplete: () => {
-        this.tweens.add({
-          targets: [
-            this.scoreCapsule,
-            questionText, counterText, this.timerTrack, this.timerGradImage,
-            ...this.choiceButtons.map(c => c.box)
-          ],
-          alpha: 1,
-          duration: 450,
-          delay: 120,
-          onComplete: () => { this.elapsed = 0; this.timerRunning = true; }
-        });
-      }
-    });
+  // Si el score quedara "dentro" de la card, baja la card lo necesario
+  const scoreBottom = scoreCy + scoreCapH / 2;
+  const plannedCardTop = cardCy - cardH / 2;
+  if (scoreBottom + MARGIN_BETWEEN > plannedCardTop) {
+    const needed = (scoreBottom + MARGIN_BETWEEN) - plannedCardTop;
+    cardCy += needed; // baja la card únicamente lo necesario
   }
+
+  // ======== Card (rect ángulo 40) ========
+  const startX = -cardW;
+  const targetX = W * 0.5;
+
+  this.cardContainer = this.add.container(startX, cardCy).setDepth(10);
+
+  // Sombra
+  const cardShadow = this.add.graphics();
+  cardShadow.fillStyle(0x000000, 0.18);
+  cardShadow.fillRoundedRect(-cardW/2, -cardH/2 + 8, cardW, cardH, this.CARD_RADIUS);
+  this.cardContainer.add(cardShadow);
+
+  // Panel blanco
+  const cardBg = this.add.graphics();
+  cardBg.fillStyle(0xffffff, 1);
+  cardBg.lineStyle(2, 0xe5e7eb, 1);
+  cardBg.fillRoundedRect(-cardW/2, -cardH/2, cardW, cardH, this.CARD_RADIUS);
+  cardBg.strokeRoundedRect(-cardW/2, -cardH/2, cardW, cardH, this.CARD_RADIUS);
+  this.cardContainer.add(cardBg);
+
+  // Pregunta
+  const pad = 32;
+  const qMaxWidth = cardW - pad * 2;
+  const questionY = -cardH * 0.22;
+
+  const questionText = this.add.text(0, questionY, qData.text, {
+    fontFamily: 'Arial, Helvetica, sans-serif',
+    fontSize: '44px',
+    color: '#0f0f13',
+    wordWrap: { width: qMaxWidth, useAdvancedWrap: true },
+    align: 'center'
+  }).setOrigin(0.5).setAlpha(0);
+  this.cardContainer.add(questionText);
+
+  // Contador X / N (esquina superior derecha de la card)
+  const counterText = this.add.text(cardW / 2 - pad, -cardH / 2 + pad, `${idx + 1} / ${QUESTIONS.length}`, {
+    fontFamily: 'Arial, Helvetica, sans-serif',
+    fontSize: '32px',
+    color: '#6b7280'
+  }).setOrigin(1, 0).setAlpha(0);
+  this.cardContainer.add(counterText);
+  this.progressText = counterText;
+
+  // Evitar choque del texto de pregunta con el contador
+  const counterBottom = -cardH / 2 + pad + counterText.height;
+  const gap = 16;
+  const minQuestionCenterY = counterBottom + gap + questionText.height / 2;
+  if (questionText.y < minQuestionCenterY) {
+    questionText.setY(minQuestionCenterY);
+  }
+
+  // ----- Timer integrado en la base de la card -----
+  const barH = 22;
+  const trackW = cardW - pad * 2;
+  const trackX = -cardW / 2 + pad;
+  const trackY = cardH / 2 - pad - barH / 2;
+
+  // Track gris debajo
+  this.timerTrack = this.add.graphics();
+  this.timerTrack.fillStyle(0xE5E7EB, 1);
+  this.timerTrack.fillRoundedRect(trackX, trackY - barH/2, trackW, barH, 10);
+  this.timerTrack.setAlpha(0);
+  this.cardContainer.add(this.timerTrack);
+
+  // Gradiente horizontal del timer
+  this.createGradientTexture(this.timerGradKey, Math.floor(trackW), Math.floor(barH), '#4f0b7b', '#e0119d', 10);
+  this.timerGradW = trackW; this.timerGradH = barH;
+
+  this.timerGradImage = this.add.image(trackX, trackY, this.timerGradKey)
+    .setOrigin(0, 0.5).setAlpha(0);
+  this.cardContainer.add(this.timerGradImage);
+
+  // ======== Score capsule (independiente y por encima) ========
+  this.createScoreCapsule(W * 0.5, scoreCy);
+  this.scoreCapsule.setDepth(50); // asegurar que se dibuje sobre la card
+
+  // ======== Alternativas (centradas como bloque en 1/3 de la mitad inferior) ========
+  const MAX_BTN_W = Math.min(W * 0.86, 780);
+  const MIN_BTN_W = Math.min(W * 0.6, 420);
+  const H_PAD = 40;        // padding horizontal del label dentro del botón
+  const V_PAD = 24;        // padding vertical del label dentro del botón
+  const MIN_BTN_H = 96;
+
+  // Medimos cada alternativa con el wrap del ancho máximo posible
+  const WRAP_WIDTH = MAX_BTN_W - H_PAD * 2;
+
+  let maxLabelW = 0;
+  let maxLabelH = 0;
+  for (const txt of displayChoices) {
+    const s = this.measureTextSize(txt, WRAP_WIDTH);
+    maxLabelW = Math.max(maxLabelW, s.width);
+    maxLabelH = Math.max(maxLabelH, s.height);
+  }
+
+  // Dimensiones finales uniformes para esta pregunta
+  const btnW = Phaser.Math.Clamp(maxLabelW + H_PAD * 2, MIN_BTN_W, MAX_BTN_W);
+  const btnH = Math.max(MIN_BTN_H, maxLabelH + V_PAD * 2);
+
+  const GAP_CHOICES = Math.max(12, Math.min(32, bottomHalfH * 0.06));
+  const groupHeight = 4 * btnH + 3 * GAP_CHOICES;
+
+  // Centro del grupo en 1/3 de la mitad inferior
+  let firstY = choicesGroupCy - groupHeight / 2 + btnH / 2;
+
+  // === NUEVO: garantizar gap mínimo entre la card y el primer botón ===
+  const MIN_GAP_CARD_TO_FIRST_BTN = Math.max(24, Math.round(H * 0.015)); // responsivo (≈1.5% de alto)
+  const cardBottom = cardCy + cardH / 2;
+  const bottomHalfBottom = bottomHalfTop + bottomHalfH;
+
+  // Empuja el grupo hacia abajo si el primer botón chocaría con la card
+  const firstBtnTop = firstY - btnH / 2;
+  const neededGapDown = (cardBottom + MIN_GAP_CARD_TO_FIRST_BTN) - firstBtnTop;
+  if (neededGapDown > 0) {
+    firstY += neededGapDown;
+  }
+
+  // Clamp final: que el último botón no se salga por abajo de la mitad inferior
+  const lastBtnBottom = (firstY + 3 * (btnH + GAP_CHOICES)) + btnH / 2;
+  const marginBottom = Math.max(12, Math.round(H * 0.01)); // pequeño respiro abajo (responsivo)
+  if (lastBtnBottom > bottomHalfBottom - marginBottom) {
+    const over = lastBtnBottom - (bottomHalfBottom - marginBottom);
+    firstY -= over; // sube todo el bloque lo justo
+  }
+
+  // Crear botones usando el firstY final
+  for (let i = 0; i < 4; i++) {
+    const y = firstY + i * (btnH + GAP_CHOICES);
+    const entry = this.createChoiceButton(W * 0.5, y, btnW, btnH, displayChoices[i], H_PAD);
+    entry.box.setDepth(20);
+    entry.hit.on('pointerdown', () => this.onChoice(i));
+    this.choiceButtons.push(entry);
+  }
+
+  // Animación de entrada
+  this.tweens.add({
+    targets: this.cardContainer,
+    x: targetX,
+    duration: 600,
+    ease: 'Back.Out',
+    onComplete: () => {
+      this.tweens.add({
+        targets: [
+          this.scoreCapsule, // fade in del score también
+          questionText, counterText, this.timerTrack, this.timerGradImage,
+          ...this.choiceButtons.map(c => c.box)
+        ],
+        alpha: 1,
+        duration: 450,
+        delay: 120,
+        onComplete: () => { this.elapsed = 0; this.timerRunning = true; }
+      });
+    }
+  });
+}
+
+
 
   // ============ Update ============
   update(_, delta) {
@@ -283,7 +389,7 @@ export default class GameScene extends Phaser.Scene {
       // Lineal 10→1 a lo largo de 20 s (2 s por punto)
       const points = Math.max(1, 10 - Math.floor(secondsUsed / 2));
 
-      // **FIX**: sumar puntos al puntaje total
+      // sumar puntos al puntaje total
       this.score += points;
       this.scoreText.setText(`Puntaje: ${this.score}`);
 
@@ -303,15 +409,15 @@ export default class GameScene extends Phaser.Scene {
       // Penalización (progresiva o fija)
       let penalty = 5;
       if (this.useEscalatingPenalty) {
-        this.mistakesThisQuestion += 1;      // 1º error = 1, 2º = 2, ...
-        penalty = 5 * this.mistakesThisQuestion; // 5, 10, 15...
+        this.mistakesThisQuestion += 1;           // 1º error = 1, 2º = 2, ...
+        penalty = 5 * this.mistakesThisQuestion;  // 5, 10, 15...
       }
 
       // No bajar de 0
       this.score = Math.max(0, this.score - penalty);
       this.scoreText.setText(`Puntaje: ${this.score}`);
 
-      // Mostrar penalización al lado derecho del botón (rojo, 50px)
+      // Mostrar penalización al lado derecho del botón (rojo)
       this.showPenaltyNearButton(entry, penalty);
 
       // Borde rojo
@@ -375,7 +481,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   // ============ Botón UI (container + HIT RECTANGLE) ============
-  createChoiceButton(cx, cy, w, h, text) {
+  createChoiceButton(cx, cy, w, h, text, hPad = 40) {
     const r = this.BTN_RADIUS;
 
     const box = this.add.container(cx, cy).setAlpha(0);
@@ -392,11 +498,11 @@ export default class GameScene extends Phaser.Scene {
 
     const label = this.add.text(0, 0, text, {
       fontFamily: 'Arial, Helvetica, sans-serif',
-      fontSize: '30px',
+      fontSize: '40px',
       color: '#313537',
       align: 'center',
-      wordWrap: { width: w - 40, useAdvancedWrap: true }
-    }).setOrigin(0.5);
+      wordWrap: { width: Math.max(10, w - 2 * hPad), useAdvancedWrap: true }
+    }).setOrigin(0.5); // ← centrado exacto en X e Y
     box.add(label);
 
     const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0.001)
@@ -433,25 +539,23 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.add({ targets: g, alpha: 1, duration: 90, yoyo: true, hold: 140 });
   }
 
-  // +puntos junto al botón (fuera, alineado al centro vertical del botón)
+  // +puntos junto al botón
   showPointsNearButton(entry, points) {
     const { width: W } = this.scale;
 
-    // Posición base: a la DERECHA del botón, centrado verticalmente
     let x = entry.box.x + entry.w / 2 + 18;
     const y = entry.box.y;
 
     const txt = this.add.text(x, y, `+${points}`, {
       fontFamily: 'Arial, Helvetica, sans-serif',
       fontSize: '50px',
-      color: '#2ecc71',     // verde del borde correcto
+      color: '#2ecc71',
       strokeThickness: 3
     })
       .setOrigin(0, 0.5)
       .setDepth(50)
       .setAlpha(0);
 
-    // Evitar salir por la derecha
     const bounds = txt.getBounds();
     const maxX = W - 12;
     if (bounds.right > maxX) {
@@ -472,7 +576,7 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  // -puntos junto al botón (fuera, alineado al centro vertical del botón)
+  // -puntos junto al botón
   showPenaltyNearButton(entry, amount = 5) {
     const { width: W } = this.scale;
 
