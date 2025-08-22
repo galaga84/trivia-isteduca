@@ -4,19 +4,18 @@ import InstructionsScene from './scenes/InstructionsScene.js';
 import LeaderboardScene from './scenes/LeaderboardScene.js';
 import GameScene from './scenes/GameScene.js';
 import GameOverScene from './scenes/GameOverScene.js';
+import BootScene from './scenes/BootScene.js';
 
 const config = {
-  type: Phaser.AUTO,             // usa window.Phaser (UMD)
+  type: Phaser.AUTO,         // usando Phaser UMD (window.Phaser)
   parent: 'app',
   width: 1080,
   height: 1920,
   backgroundColor: '#0f0f13',
-  scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH
-  },
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: [
-    IntroScene,          // arranque seguro
+    BootScene,         // 👈 arranca aquí
+    IntroScene,
     InstructionsScene,
     LeaderboardScene,
     GameScene,
@@ -26,7 +25,7 @@ const config = {
 
 const game = new Phaser.Game(config);
 
-// --- Fix de viewport para móvil (evita quedar “tamaño landscape” al volver a portrait) ---
+// Fix de viewport (evita quedar con tamaño de landscape al volver a portrait)
 function fixViewport() {
   const vw = Math.round(window.visualViewport?.width || window.innerWidth);
   const vh = Math.round(window.visualViewport?.height || window.innerHeight);
@@ -39,6 +38,7 @@ window.addEventListener('resize', scheduleFix);
 window.addEventListener('orientationchange', scheduleFix);
 document.addEventListener('visibilitychange', scheduleFix);
 scheduleFix();
+
 
 
 
